@@ -26,6 +26,8 @@ public class GridAuthenticatorViewModel: ObservableObject {
     @Published public var setupCompletion: ((String) -> Void)?
     @Published public var confirmationState: ConfirmationState = .initial
     @Published public var firstPatternHash: String?
+    @Published public var isSimulating: Bool = false
+    private var simulationTask: Task<Void, Never>?
 
     public var mostRecentSelection: Int? {
         return selectedCardsIndices.last
@@ -84,9 +86,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
                         incorrectCount += 1
                     }
                 } else {
-                    if repeatInput ?? true {
-                        simulatePattern(selectedCardsIndices)
-                    }
+                    handleSetPattern()
                 }
             }
         }
@@ -120,14 +120,17 @@ public class GridAuthenticatorViewModel: ObservableObject {
     }
 
     public func simulatePattern(_ pattern: [Int]) {
-        Task { @MainActor in
+        cancelSimulation()
+        isSimulating = true
+        simulationTask = Task { @MainActor in
+            defer { isSimulating = false }
             try? await Task.sleep(nanoseconds: 500_000_000)
             var lastCenter: CGPoint?
             for index in pattern {
+                if Task.isCancelled { return }
                 if index >= 0 && index < cardsData.count {
                     let cardBounds = cardsData[index].bounds
                     let cardCenter = CGPoint(x: cardBounds.midX, y: cardBounds.midY)
-                    // selectedCardsIndices.append(index)
                     particleSystem.center = UnitPoint(x: cardCenter.x / UIScreen.main.bounds.width,
                                                       y: cardCenter.y / UIScreen.main.bounds.height)
                     particleSystem.addParticle(at: cardCenter)
@@ -136,6 +139,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
                         // Generate particles between points
                         let steps = 10
                         for i in 1 ... steps {
+                            if Task.isCancelled { return }
                             let t = CGFloat(i) / CGFloat(steps)
                             let intermediatePoint = CGPoint(
                                 x: lastCenter.x + (cardCenter.x - lastCenter.x) * t,
@@ -157,15 +161,19 @@ public class GridAuthenticatorViewModel: ObservableObject {
         }
     }
 
+    public func cancelSimulation() {
+        simulationTask?.cancel()
+        simulationTask = nil
+        isSimulating = false
+    }
+
     private func handleSetPattern() {
         if requireConfirmation ?? false {
             switch confirmationState {
             case .initial:
-                // Do nothing, wait for user to press confirm
                 if repeatInput ?? true {
                     simulatePattern(selectedCardsIndices)
                 }
-                break
             case .awaitingConfirmation:
                 if currentHash == firstPatternHash {
                     confirmationState = .confirmed

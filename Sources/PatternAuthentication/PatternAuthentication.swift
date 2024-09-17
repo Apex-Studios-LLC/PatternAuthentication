@@ -72,18 +72,24 @@ public struct GridAuthenticator: View {
                     .foregroundStyle(.red)
                     .padding(.bottom)
                 if viewModel.mode == .set {
-                    if viewModel.confirmationState == .awaitingConfirmation {
+                    switch viewModel.confirmationState {
+                    case .initial:
+                        Text("Set your pattern")
+                            .foregroundStyle(viewModel.viewColor)
+                            .padding(.bottom)
+                    case .awaitingConfirmation:
                         Text("Please confirm your pattern")
                             .foregroundStyle(viewModel.viewColor)
+                            .padding(.bottom)
+                    case .confirmed:
+                        Text("Pattern confirmed!")
+                            .foregroundStyle(.green)
                             .padding(.bottom)
                     }
                     if viewModel.selectedCardsIndices.count > 0 && viewModel.locked {
                         HStack {
                             Button {
-                                viewModel.selectedCardsIndices = []
-                                viewModel.locked = false
-                                viewModel.confirmationState = .initial
-                                viewModel.firstPatternHash = nil
+                                viewModel.reset()
                             } label: {
                                 Text("Reset")
                             }
@@ -104,6 +110,13 @@ public struct GridAuthenticator: View {
                         }
                         .padding()
                     }
+                }
+            }
+            .onChange(of: viewModel.isSimulating) { isSimulating in
+                if isSimulating {
+                    // Optionally, you can disable user interaction here
+                } else {
+                    // Re-enable user interaction if needed
                 }
             }
         }
