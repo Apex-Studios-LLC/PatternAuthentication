@@ -71,21 +71,26 @@ public struct GridAuthenticator: View {
                 Text(viewModel.validityText)
                     .foregroundStyle(.red)
                     .padding(.bottom)
-                if !viewModel.validityText.isEmpty {
-                    Image(systemName: viewModel.valid ? "checkmark.circle.fill" : "x.circle.fill")
-                        .foregroundStyle(viewModel.valid ? .green : .red)
-                        .padding(.bottom, 30)
-
-                    Button {
-                        viewModel.selectedCardsIndices = []
-                        viewModel.locked = false
-                    } label: {
-                        Text("Reset")
+                if viewModel.mode == .set {
+                    if viewModel.confirmationState == .awaitingConfirmation {
+                        Text("Please confirm your pattern")
+                            .foregroundStyle(viewModel.viewColor)
+                            .padding(.bottom)
                     }
-                    .buttonBorderShape(.capsule)
-                    .buttonStyle(BorderedProminentButtonStyle())
-                    .tint(viewModel.viewColor)
-                    .ignoresSafeArea()
+                    if viewModel.selectedCardsIndices.count > 0 && viewModel.locked {
+                        Button {
+                            viewModel.selectedCardsIndices = []
+                            viewModel.locked = false
+                            viewModel.confirmationState = .initial
+                            viewModel.firstPatternHash = nil
+                        } label: {
+                            Text("Reset")
+                        }
+                        .buttonBorderShape(.capsule)
+                        .buttonStyle(BorderedProminentButtonStyle())
+                        .tint(viewModel.viewColor)
+                        .ignoresSafeArea()
+                    }
                 }
             }
         }
@@ -147,4 +152,3 @@ public struct CardPreferenceKey: PreferenceKey {
         value.append(contentsOf: nextValue())
     }
 }
-

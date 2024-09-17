@@ -1,5 +1,5 @@
 //
-//  PatternAuthenticatorViewModel.swift
+//  GridAuthenticatorViewModel.swift
 //
 //
 //  Created by Shain Mack on 9/17/24.
@@ -19,10 +19,13 @@ public class GridAuthenticatorViewModel: ObservableObject {
     @Published public var interactionMode: InteractionMode
     @Published public var incorrectCount: Int = 0
     @Published public var repeatInput: Bool?
+    @Published public var requireConfirmation: Bool?
     @Published public var expectedHash: String?
     public var minimumVertices: Int? = 6
     @Published public var authCompletion: ((Bool) -> Void)?
     @Published public var setupCompletion: ((String) -> Void)?
+    @Published public var confirmationState: ConfirmationState = .initial
+    @Published public var firstPatternHash: String?
 
     public var mostRecentSelection: Int? {
         return selectedCardsIndices.last
@@ -37,18 +40,19 @@ public class GridAuthenticatorViewModel: ObservableObject {
             self.debug = debug
             mode = .authenticate
             authCompletion = completion
-        case let .set(minimumVertices, color, interactionMode, repeatInput, debug, completion):
+        case let .set(minimumVertices, color, interactionMode, requireConfirmation, repeatInput, debug, completion):
             self.minimumVertices = minimumVertices
             self.repeatInput = repeatInput
             viewColor = color
             self.interactionMode = interactionMode
+            self.requireConfirmation = requireConfirmation
             self.debug = debug
             mode = .set
             setupCompletion = completion
         }
     }
 
-     public var currentHash: String {
+    public var currentHash: String {
         return hashArray(selectedCardsIndices)
     }
 
@@ -117,7 +121,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
 
     public func simulatePattern(_ pattern: [Int]) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500000000)
+            try? await Task.sleep(nanoseconds: 500_000_000)
             var lastCenter: CGPoint?
             for index in pattern {
                 if index >= 0 && index < cardsData.count {
@@ -142,20 +146,56 @@ public class GridAuthenticatorViewModel: ObservableObject {
                                 y: intermediatePoint.y / UIScreen.main.bounds.height
                             )
                             particleSystem.addParticle(at: intermediatePoint)
-                            try? await Task.sleep(nanoseconds: 20000000)
+                            try? await Task.sleep(nanoseconds: 20_000_000)
                         }
                     }
 
                     lastCenter = cardCenter
-                    try? await Task.sleep(nanoseconds: 75000000)
+                    try? await Task.sleep(nanoseconds: 75_000_000)
                 }
             }
         }
     }
 
+    private func handleSetPattern() {
+        if requireConfirmation ?? false {
+            switch confirmationState {
+            case .initial:
+                firstPatternHash = currentHash
+                confirmationState = .awaitingConfirmation
+                if repeatInput ?? true {
+                    simulatePattern(selectedCardsIndices)
+                }
+                selectedCardsIndices = []
+                locked = false
+            case .awaitingConfirmation:
+                if currentHash == firstPatternHash {
+                    confirmationState = .confirmed
+                    setupCompletion?(currentHash)
+                } else {
+                    // Patterns don't match, reset
+                    confirmationState = .initial
+                    firstPatternHash = nil
+                    selectedCardsIndices = []
+                    locked = false
+                    incorrectCount += 1
+                }
+            case .confirmed:
+                // This shouldn't happen, but reset if it does
+                confirmationState = .initial
+                firstPatternHash = nil
+                selectedCardsIndices = []
+                locked = false
+            }
+        } else {
+            // No confirmation required, complete setup immediately
+            setupCompletion?(currentHash)
+        }
+    }
+
     public enum GridAuthenticatorOption {
         case authenticate(expectedHash: String, color: Color = .blue, interactionMode: InteractionMode = .drag, debug: Bool = false, completion: (Bool) -> Void)
-        case set(minimumVertices: Int = 6, color: Color = .blue, interactionMode: InteractionMode = .drag, repeatInput: Bool = true, debug: Bool = false, completion: (String) -> Void)
+        case set(minimumVertices: Int = 6, color: Color = .blue, interactionMode: InteractionMode = .drag, requireConfirmation: Bool = true, repeatInput: Bool = true, debug: Bool = false, completion: (String) -> Void)
     }
 
     public enum AuthType {
@@ -164,5 +204,9 @@ public class GridAuthenticatorViewModel: ObservableObject {
 
     public enum InteractionMode {
         case tap, drag
+    }
+
+    public enum ConfirmationState {
+        case initial, awaitingConfirmation, confirmed
     }
 }
