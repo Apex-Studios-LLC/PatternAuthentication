@@ -211,6 +211,14 @@ public class GridAuthenticatorViewModel: ObservableObject {
         }
     }
 
+    public func reset() {
+        cancelSimulation()
+        selectedCardsIndices = []
+        locked = false
+        confirmationState = .initial
+        firstPatternHash = nil
+    }
+
     public enum GridAuthenticatorOption {
         case authenticate(expectedHash: String, color: Color = .blue, interactionMode: InteractionMode = .drag, debug: Bool = false, completion: (Bool) -> Void)
         case set(minimumVertices: Int = 6, color: Color = .blue, interactionMode: InteractionMode = .drag, requireConfirmation: Bool = true, repeatInput: Bool = true, debug: Bool = false, completion: (String) -> Void)
