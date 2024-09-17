@@ -118,6 +118,8 @@ public class GridAuthenticatorViewModel: ObservableObject {
     public func simulatePattern(_ pattern: [Int]) {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500000000)
+            // Clear the existing pattern before simulating
+            selectedCardsIndices = []
             var lastCenter: CGPoint?
             for index in pattern {
                 if index >= 0 && index < cardsData.count {
@@ -150,6 +152,8 @@ public class GridAuthenticatorViewModel: ObservableObject {
                     try? await Task.sleep(nanoseconds: 75000000)
                 }
             }
+            // After simulation, clear the pattern again
+            selectedCardsIndices = []
         }
     }
 
