@@ -92,7 +92,19 @@ public class GridAuthenticatorViewModel: ObservableObject {
                         incorrectCount += 1
                     }
                 } else {
-                    handleSetPattern()
+                    if confirmationState == .awaitingConfirmation {
+                        if currentHash == firstPatternHash {
+                            confirmationState = .confirmed
+                            setupCompletion?(currentHash)
+                        } else {
+                            // Patterns don't match, show error
+                            incorrectCount += 1
+                        }
+                        selectedCardsIndices = []
+                        locked = false
+                    } else {
+                        handleSetPattern()
+                    }
                 }
             }
         }
