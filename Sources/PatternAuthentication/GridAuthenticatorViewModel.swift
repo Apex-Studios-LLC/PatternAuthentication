@@ -162,6 +162,9 @@ public class GridAuthenticatorViewModel: ObservableObject {
             switch confirmationState {
             case .initial:
                 // Do nothing, wait for user to press confirm
+                if repeatInput ?? true {
+                    simulatePattern(selectedCardsIndices)
+                }
                 break
             case .awaitingConfirmation:
                 if currentHash == firstPatternHash {
@@ -184,6 +187,9 @@ public class GridAuthenticatorViewModel: ObservableObject {
             }
         } else {
             // No confirmation required, complete setup immediately
+            if repeatInput ?? true {
+                simulatePattern(selectedCardsIndices)
+            }
             setupCompletion?(currentHash)
         }
     }
