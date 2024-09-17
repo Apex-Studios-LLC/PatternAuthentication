@@ -119,13 +119,13 @@ public class GridAuthenticatorViewModel: ObservableObject {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 500000000)
             // Clear the existing pattern before simulating
-            selectedCardsIndices = []
+            // selectedCardsIndices = []
             var lastCenter: CGPoint?
             for index in pattern {
                 if index >= 0 && index < cardsData.count {
                     let cardBounds = cardsData[index].bounds
                     let cardCenter = CGPoint(x: cardBounds.midX, y: cardBounds.midY)
-                    selectedCardsIndices.append(index)
+                    // selectedCardsIndices.append(index)
                     particleSystem.center = UnitPoint(x: cardCenter.x / UIScreen.main.bounds.width,
                                                       y: cardCenter.y / UIScreen.main.bounds.height)
                     particleSystem.addParticle(at: cardCenter)
@@ -153,7 +153,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
                 }
             }
             // After simulation, clear the pattern again
-            selectedCardsIndices = []
+            // selectedCardsIndices = []
         }
     }
 
