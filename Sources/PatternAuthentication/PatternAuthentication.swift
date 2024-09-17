@@ -78,18 +78,31 @@ public struct GridAuthenticator: View {
                             .padding(.bottom)
                     }
                     if viewModel.selectedCardsIndices.count > 0 && viewModel.locked {
-                        Button {
-                            viewModel.selectedCardsIndices = []
-                            viewModel.locked = false
-                            viewModel.confirmationState = .initial
-                            viewModel.firstPatternHash = nil
-                        } label: {
-                            Text("Reset")
+                        HStack {
+                            Button {
+                                viewModel.selectedCardsIndices = []
+                                viewModel.locked = false
+                                viewModel.confirmationState = .initial
+                                viewModel.firstPatternHash = nil
+                            } label: {
+                                Text("Reset")
+                            }
+                            .buttonBorderShape(.capsule)
+                            .buttonStyle(BorderedProminentButtonStyle())
+                            .tint(viewModel.viewColor)
+
+                            if viewModel.requireConfirmation ?? false && viewModel.confirmationState == .initial {
+                                Button {
+                                    viewModel.confirmPattern()
+                                } label: {
+                                    Text("Confirm")
+                                }
+                                .buttonBorderShape(.capsule)
+                                .buttonStyle(BorderedProminentButtonStyle())
+                                .tint(viewModel.viewColor)
+                            }
                         }
-                        .buttonBorderShape(.capsule)
-                        .buttonStyle(BorderedProminentButtonStyle())
-                        .tint(viewModel.viewColor)
-                        .ignoresSafeArea()
+                        .padding()
                     }
                 }
             }
