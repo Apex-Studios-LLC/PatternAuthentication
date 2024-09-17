@@ -67,7 +67,13 @@ public class GridAuthenticatorViewModel: ObservableObject {
         case .authenticate:
             return ""
         case .set:
-            return !valid && locked ? "Not long enough. Pattern must include at least \(minimumVertices ?? .max) vertices" : ""
+            if !valid && locked {
+                return "Not long enough. Pattern must include at least \(minimumVertices ?? .max) vertices"
+            } else if confirmationState == .awaitingConfirmation && !selectedCardsIndices.isEmpty {
+                return "Patterns do not match. Please try again."
+            } else {
+                return ""
+            }
         }
     }
 
@@ -179,19 +185,14 @@ public class GridAuthenticatorViewModel: ObservableObject {
                     confirmationState = .confirmed
                     setupCompletion?(currentHash)
                 } else {
-                    // Patterns don't match, reset
-                    confirmationState = .initial
-                    firstPatternHash = nil
+                    // Patterns don't match, show error
+                    incorrectCount += 1
                     selectedCardsIndices = []
                     locked = false
-                    incorrectCount += 1
                 }
             case .confirmed:
                 // This shouldn't happen, but reset if it does
-                confirmationState = .initial
-                firstPatternHash = nil
-                selectedCardsIndices = []
-                locked = false
+                reset()
             }
         } else {
             // No confirmation required, complete setup immediately
