@@ -92,12 +92,14 @@ public struct GridAuthenticator: View {
                                 viewModel.reset()
                             } label: {
                                 Text("Reset")
+                                .bold()
+                                .foregroundStyle(.red)
                             }
                             .buttonBorderShape(.capsule)
                             .buttonStyle(BorderedProminentButtonStyle())
-                            .tint(viewModel.viewColor)
-                            .padding(.horizontal)
-
+                            .tint(.yellow)
+                            .padding(.leading)
+                            Spacer()
                             if viewModel.requireConfirmation ?? false && viewModel.confirmationState == .initial {
                                 Button {
                                     viewModel.confirmPattern()
@@ -107,9 +109,10 @@ public struct GridAuthenticator: View {
                                 .buttonBorderShape(.capsule)
                                 .buttonStyle(BorderedProminentButtonStyle())
                                 .tint(viewModel.viewColor)
-                                .padding(.horizontal)
+                                .padding(.trailing)
                             }
                         }
+                        .frame(maxWidth: .infinity)
                         .padding()
                     }
                 }
