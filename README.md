@@ -52,12 +52,13 @@ GridAuthenticator(.set(
     minimumVertices: 6,
     color: .green,
     interactionMode: .drag,
+    requireConfirmation: true,
     repeatInput: true,
     debug: false
 ) { hash in
     print("New pattern hash: \(hash)")
     // Store this hash securely for later authentication
-    // It is HIGHLY recommended that you do this twice to ensure that the pattern is correctly input before saving. Since patterns are hashed for security, there is no way to retrieve the pattern after creation
+    // if `requireConfirmation` is set to true it will automatically have the user confirm the pattern prior to calling completion
 })
 ```
 
@@ -90,6 +91,7 @@ The `GridAuthenticator` view can be customized using the following parameters:
 - `interactionMode`: Choose between `.tap` or `.drag` for pattern input [default: `.drag`]
 - `debug`: Enable or disable debug information display. This adds some additional logging and some debug UI elements [default: `false`]
 - `minimumVertices`: Set the minimum number of points required for a valid pattern (setup mode only) [default: `6`]
+- `requireConfirmation`: User will be asked to confirm their pattern prior to completion being called (setup mode only) [default: `true`]
 - `repeatInput`: The pattern will be repeated back for the user after their initial input and before their confirmation input (setup mode only) [default: `true`]
 
 ## Security
@@ -111,6 +113,11 @@ Contributions to the Pattern Authentication package are welcome. Please feel fre
 ## Support
 
 For questions, bug reports, or feature requests, please open an issue on the GitHub repository.
+
+## Roadmap and Known Issues
+
+- *Known Issue* - `.tap` interaction is not currently activated. Passing the `.tap` will not change the input
+- *Roadmap* - increase size of particles for a wider particle path
 
 ## License
 
