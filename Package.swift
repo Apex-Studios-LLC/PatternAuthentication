@@ -22,6 +22,9 @@ let package = Package(
             name: "PatternAuthentication",
             resources: [
                 .process("Media.xcassets"),
+            ],
+            exclude: [
+                "Images",
             ]
         ),
     ]
