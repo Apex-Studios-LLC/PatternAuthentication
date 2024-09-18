@@ -28,6 +28,8 @@ public class GridAuthenticatorViewModel: ObservableObject {
     @Published public var firstPatternHash: String?
     @Published public var isSimulating: Bool = false
     private var simulationTask: Task<Void, Never>?
+    @Published public var isDragging: Bool = false
+    @Published public var lastDragError: String?
 
     public var mostRecentSelection: Int? {
         return selectedCardsIndices.last
@@ -63,21 +65,29 @@ public class GridAuthenticatorViewModel: ObservableObject {
     }
 
     public var validityText: String {
-        switch mode {
-        case .authenticate:
+        if isDragging {
             return ""
-        case .set:
-            if !valid && locked {
-                return "Not long enough. Pattern must include at least \(minimumVertices ?? .max) vertices"
-            } else if confirmationState == .awaitingConfirmation && !selectedCardsIndices.isEmpty {
-                return "Patterns do not match. Please try again."
-            } else {
-                return ""
+        }
+        return lastDragError ?? ""
+    }
+
+    public func duringDrag(drag: DragGesture.Value) {
+        isDragging = true
+        if !locked {
+            if let data = cardsData.first(where: { $0.bounds.contains(drag.location) }) {
+                if selectedCardsIndices.last ?? -1 != data.index {
+                    selectedCardsIndices.append(data.index)
+                }
             }
+
+            particleSystem.center.x = drag.location.x / UIScreen.main.bounds.width
+            particleSystem.center.y = drag.location.y / UIScreen.main.bounds.height
+            particleSystem.addParticle(at: drag.location)
         }
     }
 
     public func afterDrag() {
+        isDragging = false
         if !selectedCardsIndices.isEmpty {
             if debug {
                 print("[DEBUG] Drag ended, hash is: \(currentHash)")
@@ -91,6 +101,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
                     withAnimation {
                         incorrectCount += 1
                     }
+                    lastDragError = "Not long enough. Pattern must include at least \(minimumVertices ?? .max) vertices"
                 } else {
                     if confirmationState == .awaitingConfirmation {
                         if currentHash == firstPatternHash {
@@ -99,11 +110,10 @@ public class GridAuthenticatorViewModel: ObservableObject {
                         } else {
                             // Patterns don't match, show error
                             incorrectCount += 1
+                            lastDragError = "Patterns do not match. Please try again."
                         }
                         selectedCardsIndices = []
                         locked = false
-                    } else {
-                        handleSetPattern()
                     }
                 }
             }
@@ -120,20 +130,6 @@ public class GridAuthenticatorViewModel: ObservableObject {
             withAnimation(.easeInOut(duration: 0.3)) {
                 incorrectCount += 1
             }
-        }
-    }
-
-    public func duringDrag(drag: DragGesture.Value) {
-        if !locked {
-            if let data = cardsData.first(where: { $0.bounds.contains(drag.location) }) {
-                if selectedCardsIndices.last ?? -1 != data.index {
-                    selectedCardsIndices.append(data.index)
-                }
-            }
-
-            particleSystem.center.x = drag.location.x / UIScreen.main.bounds.width
-            particleSystem.center.y = drag.location.y / UIScreen.main.bounds.height
-            particleSystem.addParticle(at: drag.location)
         }
     }
 
@@ -230,6 +226,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
         locked = false
         confirmationState = .initial
         firstPatternHash = nil
+        lastDragError = nil
     }
 
     public enum GridAuthenticatorOption {
