@@ -96,6 +96,7 @@ public struct GridAuthenticator: View {
                             .buttonBorderShape(.capsule)
                             .buttonStyle(BorderedProminentButtonStyle())
                             .tint(viewModel.viewColor)
+                            .padding(.horizontal)
 
                             if viewModel.requireConfirmation ?? false && viewModel.confirmationState == .initial {
                                 Button {
@@ -106,6 +107,7 @@ public struct GridAuthenticator: View {
                                 .buttonBorderShape(.capsule)
                                 .buttonStyle(BorderedProminentButtonStyle())
                                 .tint(viewModel.viewColor)
+                                .padding(.horizontal)
                             }
                         }
                         .padding()
