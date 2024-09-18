@@ -112,6 +112,11 @@ Contributions to the Pattern Authentication package are welcome. Please feel fre
 
 For questions, bug reports, or feature requests, please open an issue on the GitHub repository.
 
+## Roadmap and Known Issues
+
+* *Known Issue* - `.tap` interaction is not currently activated. Passing the `.tap` will not change the input
+* *Roadmap* - increase size of particles for a wider particle path
+
 ## License
 
 Pattern Authentication is available under the MIT license. See the [LICENSE](LICENSE) file for more info.
