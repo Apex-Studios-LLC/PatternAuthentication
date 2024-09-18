@@ -2,7 +2,8 @@
 
 Pattern Authentication is a Swift package that provides a customizable 3x3 grid-based pattern authentication system for iOS applications. It offers a secure and visually appealing way to implement user authentication or pattern creation. This is useful in applications that may be on multi-user devices to eliminate needing to have every user login via email/password auth.
 
-![Demo](Images/PatternAuthenticationDemo.mp4)
+[](https://github.com/user-attachments/assets/34d3c5b0-3a0f-4a1f-b5b0-207aae6a9ef5)
+
 
 ## Features
 
