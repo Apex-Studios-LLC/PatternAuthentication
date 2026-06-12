@@ -84,6 +84,9 @@ public class GridAuthenticatorViewModel: ObservableObject {
     @Published public var isSimulating: Bool = false
     private var simulationTask: Task<Void, Never>?
 
+    /// The in-flight credential derivation or verification task.
+    private var credentialTask: Task<Void, Never>?
+
     /// Whether the user currently has an active drag gesture.
     @Published public var isDragging: Bool = false
 
@@ -254,14 +257,13 @@ public class GridAuthenticatorViewModel: ObservableObject {
     ///   to failed authentication state.
     public func authenticateHash() {
         let pattern = selectedCardsIndices
-        let success = authenticationSucceeds(for: pattern)
 
-        if success {
-            incorrectHash = nil
-            authCompletion?(true)
-        } else {
-            failAuthentication()
+        if let expectedCredential {
+            authenticateCredential(pattern, credential: expectedCredential)
+            return
         }
+
+        authenticateLegacyHash(pattern)
     }
 
     /// Replays a pattern by emitting particles along captured grid centers.
@@ -387,6 +389,7 @@ public class GridAuthenticatorViewModel: ObservableObject {
     /// - Throws: This method does not throw.
     public func reset() {
         cancelSimulation()
+        cancelCredentialTask()
         selectedCardsIndices = []
         locked = false
         confirmationState = .initial
@@ -450,62 +453,193 @@ public class GridAuthenticatorViewModel: ObservableObject {
     /// - Throws: This method does not throw. Credential creation errors are
     ///   converted to `lastDragError`.
     private func completeSetup(with pattern: [Int]) {
-        do {
-            if let credentialSetupCompletion {
-                let credential = try GestureCredentialHasher.createCredential(
+        if credentialSetupCompletion != nil {
+            startCredentialSetupTask(for: pattern)
+            return
+        }
+
+        setupCompletion?(legacyHashArray(pattern))
+        finishSetup()
+    }
+
+    /// Starts credential setup work without blocking the main actor.
+    ///
+    /// - Parameter pattern: The validated vertex sequence to store.
+    /// This method does not return a value. It invokes the credential setup
+    /// callback on the main actor after derivation finishes.
+    /// - Throws: This method does not throw. Credential creation errors are
+    ///   converted to `lastDragError`.
+    private func startCredentialSetupTask(for pattern: [Int]) {
+        cancelCredentialTask()
+        let configuration = hashConfiguration
+
+        credentialTask = Task { @MainActor [weak self] in
+            do {
+                let credential = try await Self.createCredentialOffMainActor(
                     for: pattern,
-                    configuration: hashConfiguration
+                    configuration: configuration
                 )
-                credentialSetupCompletion(credential)
-            } else {
-                setupCompletion?(legacyHashArray(pattern))
+                guard let self, !Task.isCancelled else { return }
+                credentialSetupCompletion?(credential)
+                finishSetup()
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                incorrectCount += 1
+                lastDragError = "Unable to create gesture credential."
+                finishSetup()
             }
-            selectedCardsIndices = []
-            locked = false
-        } catch {
-            incorrectCount += 1
-            lastDragError = "Unable to create gesture credential."
-            selectedCardsIndices = []
-            locked = false
         }
     }
 
-    /// Verifies a vertex sequence against the configured expected credential material.
+    /// Verifies a v1 credential without blocking the main actor.
     ///
-    /// - Parameter pattern: The selected vertex sequence to authenticate.
-    /// - Returns: `true` when `pattern` matches the configured v1 credential or
-    ///   legacy hash; otherwise, `false`.
-    /// - Throws: This method does not throw. Verification and migration errors
-    ///   are converted to `lastDragError`.
-    private func authenticationSucceeds(for pattern: [Int]) -> Bool {
-        if let expectedCredential {
+    /// - Parameters:
+    ///   - pattern: The selected vertex sequence to authenticate.
+    ///   - credential: The stored credential envelope fetched by the app.
+    /// This method does not return a value. It invokes the authentication
+    /// callback on the main actor after verification finishes.
+    /// - Throws: This method does not throw. Verification errors are converted
+    ///   to failed authentication state.
+    private func authenticateCredential(_ pattern: [Int], credential: GestureCredentialEnvelope) {
+        cancelCredentialTask()
+
+        credentialTask = Task { @MainActor [weak self] in
             do {
-                return try GestureCredentialHasher.verify(vertices: pattern, against: expectedCredential)
+                let success = try await Self.verifyCredentialOffMainActor(
+                    vertices: pattern,
+                    credential: credential
+                )
+                guard let self, !Task.isCancelled else { return }
+                if success {
+                    incorrectHash = nil
+                    authCompletion?(true)
+                } else {
+                    failAuthentication()
+                }
             } catch {
+                guard let self, !Task.isCancelled else { return }
                 lastDragError = "Unable to verify gesture credential."
-                return false
+                failAuthentication()
             }
         }
+    }
 
-        guard let expectedHash else { return false }
+    /// Authenticates a legacy v0 hash and optionally upgrades it to a v1 credential.
+    ///
+    /// - Parameter pattern: The selected vertex sequence to authenticate.
+    /// This method does not return a value. Legacy hash comparison happens
+    /// synchronously; optional v1 upgrade derivation runs off the main actor.
+    /// - Throws: This method does not throw. Migration errors are converted to
+    ///   `lastDragError` while preserving successful authentication.
+    private func authenticateLegacyHash(_ pattern: [Int]) {
+        guard let expectedHash else {
+            failAuthentication()
+            return
+        }
         let success = GestureCredentialHasher.verifyLegacySHA256(
             vertices: pattern,
             expectedHash: expectedHash
         )
 
-        if success, let legacyUpgradeCompletion {
-            do {
-                let credential = try GestureCredentialHasher.createCredential(
-                    for: pattern,
-                    configuration: hashConfiguration
-                )
-                legacyUpgradeCompletion(credential)
-            } catch {
-                lastDragError = "Gesture matched, but credential migration failed."
-            }
+        guard success else {
+            failAuthentication()
+            return
         }
 
-        return success
+        guard legacyUpgradeCompletion != nil else {
+            incorrectHash = nil
+            authCompletion?(true)
+            return
+        }
+
+        startLegacyUpgradeAuthenticationTask(for: pattern)
+    }
+
+    /// Creates an upgraded v1 credential after a successful legacy match.
+    ///
+    /// - Parameter pattern: The legacy-authenticated vertex sequence to upgrade.
+    /// This method does not return a value. It invokes the upgrade callback
+    /// before reporting authentication success, matching the previous callback
+    /// order without blocking the main actor.
+    /// - Throws: This method does not throw. Migration errors are converted to
+    ///   `lastDragError` while preserving successful authentication.
+    private func startLegacyUpgradeAuthenticationTask(for pattern: [Int]) {
+        cancelCredentialTask()
+        let configuration = hashConfiguration
+
+        credentialTask = Task { @MainActor [weak self] in
+            do {
+                let credential = try await Self.createCredentialOffMainActor(
+                    for: pattern,
+                    configuration: configuration
+                )
+                guard let self, !Task.isCancelled else { return }
+                legacyUpgradeCompletion?(credential)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                lastDragError = "Gesture matched, but credential migration failed."
+            }
+
+            guard let self, !Task.isCancelled else { return }
+            incorrectHash = nil
+            authCompletion?(true)
+        }
+    }
+
+    /// Clears setup state after a setup attempt completes.
+    ///
+    /// This method does not return a value. It clears the selected pattern and
+    /// unlocks input.
+    /// - Throws: This method does not throw.
+    private func finishSetup() {
+        selectedCardsIndices = []
+        locked = false
+    }
+
+    /// Cancels any in-flight credential derivation or verification task.
+    ///
+    /// This method does not return a value. Already-started key derivation may
+    /// finish in the background, but cancelled tasks do not update view state.
+    /// - Throws: This method does not throw.
+    private func cancelCredentialTask() {
+        credentialTask?.cancel()
+        credentialTask = nil
+    }
+
+    /// Creates a v1 credential on a background executor.
+    ///
+    /// - Parameters:
+    ///   - pattern: Ordered 3x3 grid vertex indices in the range `0...8`.
+    ///   - configuration: The hashing configuration to use.
+    /// - Returns: A new credential envelope with a fresh random salt.
+    /// - Throws: Any error thrown by `GestureCredentialHasher.createCredential`.
+    private nonisolated static func createCredentialOffMainActor(
+        for pattern: [Int],
+        configuration: GestureHashConfiguration
+    ) async throws -> GestureCredentialEnvelope {
+        try await Task.detached(priority: .userInitiated) {
+            try GestureCredentialHasher.createCredential(
+                for: pattern,
+                configuration: configuration
+            )
+        }.value
+    }
+
+    /// Verifies a v1 credential on a background executor.
+    ///
+    /// - Parameters:
+    ///   - vertices: Ordered 3x3 grid vertex indices in the range `0...8`.
+    ///   - credential: The stored credential envelope fetched by the app.
+    /// - Returns: `true` when `vertices` derive the stored credential hash;
+    ///   otherwise, `false`.
+    /// - Throws: Any error thrown by `GestureCredentialHasher.verify`.
+    private nonisolated static func verifyCredentialOffMainActor(
+        vertices: [Int],
+        credential: GestureCredentialEnvelope
+    ) async throws -> Bool {
+        try await Task.detached(priority: .userInitiated) {
+            try GestureCredentialHasher.verify(vertices: vertices, against: credential)
+        }.value
     }
 
     /// Applies failed-authentication UI state.
