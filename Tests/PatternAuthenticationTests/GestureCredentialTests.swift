@@ -215,8 +215,8 @@ struct GestureCredentialTests {
             )
         }
 
-        #expect(throws: GestureCredentialError.self) {
-            try GestureCredentialHasher.verify(
+        do {
+            _ = try GestureCredentialHasher.verify(
                 vertices: [0, 1, 2],
                 against: GestureCredentialEnvelope(
                     salt: Data(repeating: 1, count: 16),
@@ -227,6 +227,11 @@ struct GestureCredentialTests {
                     derivedKeyLength: 32
                 )
             )
+            Issue.record("Expected hash length mismatch to throw.")
+        } catch let error as GestureCredentialError {
+            #expect(error == .hashLengthMismatch(expected: 32, actual: 31))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -239,6 +244,7 @@ struct GestureCredentialTests {
             .invalidIterationCount(0),
             .invalidSaltLength(1),
             .invalidDerivedKeyLength(1),
+            .hashLengthMismatch(expected: 32, actual: 31),
             .invalidHashVersion(0),
             .secureRandomFailed(-1),
             .unsupportedKDF(.pbkdf2SHA256),

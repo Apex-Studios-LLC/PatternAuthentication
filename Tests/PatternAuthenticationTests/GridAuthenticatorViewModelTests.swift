@@ -73,6 +73,7 @@ struct GridAuthenticatorViewModelTests {
 
         viewModel.confirmPattern()
         #expect(viewModel.confirmationState == .awaitingConfirmation)
+        #expect(viewModel.firstPatternHash != nil)
 
         viewModel.selectedCardsIndices = [0, 1, 2]
         viewModel.afterDrag()
@@ -80,6 +81,7 @@ struct GridAuthenticatorViewModelTests {
         #expect(try await waitForCondition { completedCredential != nil })
         let credential = try #require(completedCredential)
         #expect(viewModel.confirmationState == .confirmed)
+        #expect(viewModel.firstPatternHash == nil)
         #expect(try GestureCredentialHasher.verify(vertices: [0, 1, 2], against: credential))
     }
 
