@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct GridAuthenticatorViewModelTests {
     @Test("Credential setup completes without confirmation")
-    func credentialSetupCompletesWithoutConfirmation() throws {
+    func credentialSetupCompletesWithoutConfirmation() async throws {
         var completedCredential: GestureCredentialEnvelope?
         let viewModel = GridAuthenticatorViewModel(.setCredential(
             minimumVertices: 3,
@@ -22,13 +22,14 @@ struct GridAuthenticatorViewModelTests {
         viewModel.selectedCardsIndices = [0, 1, 2]
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { completedCredential != nil })
         let credential = try #require(completedCredential)
         #expect(try GestureCredentialHasher.verify(vertices: [0, 1, 2], against: credential))
         #expect(!viewModel.locked)
     }
 
     @Test("Credential setup reports creation errors")
-    func credentialSetupReportsCreationErrors() {
+    func credentialSetupReportsCreationErrors() async throws {
         var didComplete = false
         let invalidConfiguration = GestureHashConfiguration(
             iterations: 1,
@@ -46,6 +47,7 @@ struct GridAuthenticatorViewModelTests {
         viewModel.selectedCardsIndices = [0, 1, 2]
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { viewModel.lastDragError != nil || didComplete })
         #expect(!didComplete)
         #expect(viewModel.lastDragError == "Unable to create gesture credential.")
         #expect(viewModel.incorrectCount == 1)
@@ -53,7 +55,7 @@ struct GridAuthenticatorViewModelTests {
     }
 
     @Test("Credential setup requires matching confirmation when enabled")
-    func credentialSetupConfirmationFlow() throws {
+    func credentialSetupConfirmationFlow() async throws {
         var completedCredential: GestureCredentialEnvelope?
         let viewModel = GridAuthenticatorViewModel(.setCredential(
             minimumVertices: 3,
@@ -75,6 +77,7 @@ struct GridAuthenticatorViewModelTests {
         viewModel.selectedCardsIndices = [0, 1, 2]
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { completedCredential != nil })
         let credential = try #require(completedCredential)
         #expect(viewModel.confirmationState == .confirmed)
         #expect(try GestureCredentialHasher.verify(vertices: [0, 1, 2], against: credential))
@@ -126,7 +129,7 @@ struct GridAuthenticatorViewModelTests {
     }
 
     @Test("Credential authentication reports success and failure")
-    func credentialAuthenticationReportsResult() throws {
+    func credentialAuthenticationReportsResult() async throws {
         let credential = try GestureCredentialHasher.createCredential(
             for: [0, 1, 2, 5],
             configuration: .testFast
@@ -140,9 +143,12 @@ struct GridAuthenticatorViewModelTests {
 
         viewModel.selectedCardsIndices = [0, 1, 2, 5]
         viewModel.afterDrag()
+        #expect(try await waitForCondition { results.count == 1 })
+
         viewModel.selectedCardsIndices = [0, 1, 2, 6]
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { results.count == 2 })
         #expect(results == [true, false])
         #expect(viewModel.incorrectCount == 1)
     }
@@ -184,7 +190,7 @@ struct GridAuthenticatorViewModelTests {
     }
 
     @Test("Legacy auth can emit an upgraded credential")
-    func legacyAuthUpgradeCallback() throws {
+    func legacyAuthUpgradeCallback() async throws {
         let pattern = [0, 4, 8, 5]
         let legacyHash = legacyHashArray(pattern)
         var upgradedCredential: GestureCredentialEnvelope?
@@ -203,13 +209,14 @@ struct GridAuthenticatorViewModelTests {
         viewModel.selectedCardsIndices = pattern
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { upgradedCredential != nil && authResults == [true] })
         let credential = try #require(upgradedCredential)
         #expect(authResults == [true])
         #expect(try GestureCredentialHasher.verify(vertices: pattern, against: credential))
     }
 
     @Test("Credential authentication reports malformed envelopes")
-    func credentialAuthenticationReportsMalformedEnvelope() {
+    func credentialAuthenticationReportsMalformedEnvelope() async throws {
         let malformedCredential = GestureCredentialEnvelope(
             salt: Data([1]),
             hash: Data(repeating: 2, count: 32),
@@ -228,6 +235,7 @@ struct GridAuthenticatorViewModelTests {
         viewModel.selectedCardsIndices = [0, 1, 2]
         viewModel.afterDrag()
 
+        #expect(try await waitForCondition { results.count == 1 })
         #expect(results == [false])
         #expect(viewModel.lastDragError == "Unable to verify gesture credential.")
     }
@@ -371,4 +379,23 @@ struct GridAuthenticatorViewModelTests {
 
 private extension GestureHashConfiguration {
     static let testFast = GestureHashConfiguration(iterations: 1, saltLength: 16)
+}
+
+@MainActor
+private func waitForCondition(
+    timeoutNanoseconds: UInt64 = 500_000_000,
+    pollIntervalNanoseconds: UInt64 = 1_000_000,
+    _ condition: @MainActor () -> Bool
+) async throws -> Bool {
+    let interval = max(pollIntervalNanoseconds, 1)
+    let attempts = max(1, Int(timeoutNanoseconds / interval))
+
+    for _ in 0 ..< attempts {
+        if condition() {
+            return true
+        }
+        try await Task.sleep(nanoseconds: interval)
+    }
+
+    return condition()
 }
