@@ -50,7 +50,7 @@ The security credential upgrade release keeps the original 1.x gesture UI APIs a
 
 ### Deprecated
 
-- Deprecated `hashArray(_:)`. Use `GestureCredentialEnvelope.create(from:configuration:)` or the new `GridAuthenticator(.setCredential(...))` flow instead.
+- Deprecated `hashArray(_:)`. Use `GestureCredentialHasher.createCredential(for:configuration:)` or the new `GridAuthenticator(.setCredential(...))` flow instead.
 - Deprecated `GridAuthenticator(.set(... completion: (String) -> Void))`. Use `GridAuthenticator(.setCredential(...))` for new setup flows.
 - Deprecated `GridAuthenticator(.authenticate(expectedHash: ...))`. Use `GridAuthenticator(.authenticateCredential(...))` once a v1 envelope is stored.
 
