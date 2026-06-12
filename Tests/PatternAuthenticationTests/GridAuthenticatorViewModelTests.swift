@@ -329,7 +329,10 @@ struct GridAuthenticatorViewModelTests {
             initialDelayNanoseconds: 0,
             pointDelayNanoseconds: 0
         )
-        try await Task.sleep(nanoseconds: 50_000_000)
+        for _ in 0 ..< 100 {
+            if !viewModel.isSimulating { break }
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
 
         #expect(!viewModel.isSimulating)
         #expect(!viewModel.particleSystem.particles.isEmpty)
