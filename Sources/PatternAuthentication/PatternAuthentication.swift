@@ -146,7 +146,7 @@ public struct GlowyCircle: View {
     public var index: Int
 
     /// Whether the selection glow is currently visible.
-    @State public var isBeingTouched: Bool = false
+    @State private var isBeingTouched: Bool = false
 
     /// The view model that receives geometry and selection updates.
     @ObservedObject public var viewModel: GridAuthenticatorViewModel

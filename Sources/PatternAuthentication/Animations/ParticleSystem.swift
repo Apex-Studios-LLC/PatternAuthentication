@@ -92,12 +92,7 @@ public final class ParticleSystem {
     /// - Throws: This method does not throw.
     public func update(date: TimeInterval) {
         let deathDate = date - particleLifetime
-
-        for particle in particles {
-            if particle.creationDate < deathDate {
-                particles.remove(particle)
-            }
-        }
+        particles = particles.filter { $0.creationDate >= deathDate }
     }
 
     /// Clears the previous interpolation anchor without removing visible particles.
