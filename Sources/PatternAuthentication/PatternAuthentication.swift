@@ -181,7 +181,7 @@ public struct GlowyCircle: View {
     /// The method does not return a value. It toggles ``isBeingTouched`` and
     /// animates it back to `false`.
     /// - Throws: This method does not throw.
-    public func triggerGlow() {
+    private func triggerGlow() {
         isBeingTouched = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             withAnimation(.easeInOut(duration: 0.3)) {

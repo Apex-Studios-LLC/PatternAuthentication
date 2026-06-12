@@ -26,6 +26,9 @@ public enum GestureCredentialError: Error, Equatable, Sendable, CustomStringConv
     /// The derived key length was outside the supported 16...64 byte range.
     case invalidDerivedKeyLength(Int)
 
+    /// The stored hash byte count did not match the envelope's derived key length.
+    case hashLengthMismatch(expected: Int, actual: Int)
+
     /// The credential version was not positive.
     case invalidHashVersion(Int)
 
@@ -59,6 +62,8 @@ public enum GestureCredentialError: Error, Equatable, Sendable, CustomStringConv
             "Salt length must be between 16 and 64 bytes, got \(length)."
         case let .invalidDerivedKeyLength(length):
             "Derived key length must be between 16 and 64 bytes, got \(length)."
+        case let .hashLengthMismatch(expected, actual):
+            "Credential hash length \(actual) does not match derived key length \(expected)."
         case let .invalidHashVersion(version):
             "Hash version must be positive, got \(version)."
         case let .secureRandomFailed(status):
@@ -594,8 +599,7 @@ public enum GestureCredentialHasher {
     /// If validation succeeds, this method returns normally without producing a
     /// value.
     /// - Throws: A ``GestureCredentialError`` when iteration count, salt length,
-    ///   derived key length, hash byte count, or hash version is outside the
-    ///   supported range.
+    ///   derived key length, hash byte count, or hash version is invalid.
     private static func validate(
         credential: GestureCredentialEnvelope
     ) throws(GestureCredentialError) {
@@ -609,7 +613,10 @@ public enum GestureCredentialHasher {
             throw .invalidDerivedKeyLength(credential.derivedKeyLength)
         }
         guard credential.hash.count == credential.derivedKeyLength else {
-            throw .invalidDerivedKeyLength(credential.hash.count)
+            throw .hashLengthMismatch(
+                expected: credential.derivedKeyLength,
+                actual: credential.hash.count
+            )
         }
         guard credential.hashVersion > 0 else {
             throw .invalidHashVersion(credential.hashVersion)

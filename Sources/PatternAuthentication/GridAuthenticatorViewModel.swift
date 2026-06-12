@@ -589,10 +589,11 @@ public class GridAuthenticatorViewModel: ObservableObject {
     /// Clears setup state after a setup attempt completes.
     ///
     /// This method does not return a value. It clears the selected pattern and
-    /// unlocks input.
+    /// first pattern hash, then unlocks input.
     /// - Throws: This method does not throw.
     private func finishSetup() {
         selectedCardsIndices = []
+        firstPatternHash = nil
         locked = false
     }
 
