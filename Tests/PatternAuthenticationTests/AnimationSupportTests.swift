@@ -19,6 +19,19 @@ struct AnimationSupportTests {
         #expect(system.particles.isEmpty)
     }
 
+    @Test("Particle system expires multiple particles safely")
+    func particleSystemExpiresMultipleParticlesSafely() {
+        let system = ParticleSystem(emissionSpacing: 5)
+        system.addParticle(at: CGPoint(x: 0, y: 0))
+        system.addParticle(at: CGPoint(x: 20, y: 0))
+        #expect(system.particles.count == 5)
+
+        let futureDate = Date.now.timeIntervalSinceReferenceDate + 2
+        system.update(date: futureDate)
+
+        #expect(system.particles.isEmpty)
+    }
+
     @Test("Particle system interpolates fast movement")
     func particleSystemInterpolatesFastMovement() {
         let system = ParticleSystem(particleDiameter: 44, emissionSpacing: 5, particleLifetime: 1)
