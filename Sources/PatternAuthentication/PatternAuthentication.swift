@@ -3,9 +3,18 @@
 
 import SwiftUI
 
+/// A SwiftUI 3x3 gesture grid for pattern setup and authentication.
+@MainActor
 public struct GridAuthenticator: View {
+    /// The main-actor view model that owns gesture flow state.
     @ObservedObject public var viewModel: GridAuthenticatorViewModel
 
+    /// Creates a grid authenticator view for setup or authentication.
+    ///
+    /// - Parameter gridAuthModel: The setup or authentication option used to
+    ///   configure the backing view model.
+    /// - Returns: A SwiftUI view that presents the gesture grid.
+    /// - Throws: This initializer does not throw.
     public init(_ gridAuthModel: GridAuthenticatorViewModel.GridAuthenticatorOption) {
         viewModel = GridAuthenticatorViewModel(gridAuthModel)
     }
@@ -15,57 +24,65 @@ public struct GridAuthenticator: View {
     public var body: some View {
         VStack {
             if viewModel.debug {
-                Text("[DEBUG] Current Pattern: \(viewModel.selectedCardsIndices)")
+                Text("[DEBUG] Selected Vertices: \(viewModel.selectedCardsIndices.count)")
                     .padding()
-                if let eh = viewModel.expectedHash {
-                    Text("[DEBUG] Expected Hash: \(eh)")
+                if viewModel.expectedCredential != nil {
+                    Text("[DEBUG] Credential Mode: v1 envelope")
                         .padding()
-                }
-                if !viewModel.selectedCardsIndices.isEmpty {
-                    Text("[DEBUG] Current Hash: \(viewModel.currentHash)")
+                } else if viewModel.expectedHash != nil {
+                    Text("[DEBUG] Credential Mode: legacy hash")
                         .padding()
                 }
             }
-            ZStack {
-                LazyVGrid(columns: columns) {
-                    ForEach(0 ..< 9, id: \.self) { index in
-                        GlowyCircle(index: index, viewModel: viewModel)
-                            .padding()
-                            .tag(index)
-                    }
+            LazyVGrid(columns: columns, spacing: 40) {
+                ForEach(0 ..< 9, id: \.self) { index in
+                    GlowyCircle(index: index, viewModel: viewModel)
+                        .padding()
+                        .tag(index)
                 }
-                .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
-                .onPreferenceChange(CardPreferenceKey.self) { value in
-                    viewModel.cardsData = value
-                }
-                .coordinateSpace(name: "GridSpace")
+            }
+            .overlay {
                 TimelineView(.animation) { timeline in
-                    Canvas { context, size in
+                    Canvas { context, _ in
                         let timelineDate = timeline.date.timeIntervalSinceReferenceDate
                         viewModel.particleSystem.update(date: timelineDate)
+
                         context.blendMode = .plusLighter
                         context.addFilter(.colorMultiply(viewModel.viewColor))
-
                         for particle in viewModel.particleSystem.particles {
-                            let xPos = particle.x * size.width
-                            let yPos = particle.y * size.height
-                            context.opacity = 1 - (timelineDate - particle.creationDate)
-                            context.draw(viewModel.particleSystem.image, at: CGPoint(x: xPos, y: yPos))
+                            let age = timelineDate - particle.creationDate
+                            let opacity = max(0, 1 - age / viewModel.particleSystem.particleLifetime)
+                            let particleDiameter = viewModel.particleSystem.particleDiameter
+                            let particleRect = CGRect(
+                                x: particle.x - particleDiameter / 2,
+                                y: particle.y - particleDiameter / 2,
+                                width: particleDiameter,
+                                height: particleDiameter
+                            )
+                            context.opacity = opacity
+                            context.draw(
+                                viewModel.particleSystem.image,
+                                in: particleRect
+                            )
                         }
                     }
                 }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { drag in
-                            viewModel.duringDrag(drag: drag)
-                        }
-                        .onEnded { _ in
-                            viewModel.afterDrag()
-                        }
-                )
-                .ignoresSafeArea()
+                .allowsHitTesting(false)
             }
-            .frame(maxWidth: /*@START_MENU_TOKEN@*/ .infinity/*@END_MENU_TOKEN@*/, maxHeight: UIScreen.main.bounds.height * 0.4)
+            .onPreferenceChange(CardPreferenceKey.self) { value in
+                viewModel.cardsData = value
+            }
+            .coordinateSpace(name: "GridSpace")
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("GridSpace"))
+                    .onChanged { drag in
+                        viewModel.duringDrag(drag: drag)
+                    }
+                    .onEnded { _ in
+                        viewModel.afterDrag()
+                    }
+            )
 
             VStack {
                 Text(viewModel.validityText)
@@ -117,21 +134,21 @@ public struct GridAuthenticator: View {
                     }
                 }
             }
-            .onChange(of: viewModel.isSimulating) { isSimulating in
-                if isSimulating {
-                    // Optionally, you can disable user interaction here
-                } else {
-                    // Re-enable user interaction if needed
-                }
-            }
         }
         .modifier(Shake(animatableData: CGFloat(viewModel.incorrectCount)))
     }
 }
 
+/// A single selectable circle in the 3x3 gesture grid.
+@MainActor
 public struct GlowyCircle: View {
+    /// The zero-based 3x3 grid index represented by this circle.
     public var index: Int
+
+    /// Whether the selection glow is currently visible.
     @State public var isBeingTouched: Bool = false
+
+    /// The view model that receives geometry and selection updates.
     @ObservedObject public var viewModel: GridAuthenticatorViewModel
 
     public var body: some View {
@@ -159,6 +176,11 @@ public struct GlowyCircle: View {
         }
     }
 
+    /// Temporarily highlights the circle after it is selected.
+    ///
+    /// The method does not return a value. It toggles ``isBeingTouched`` and
+    /// animates it back to `false`.
+    /// - Throws: This method does not throw.
     public func triggerGlow() {
         isBeingTouched = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -169,17 +191,53 @@ public struct GlowyCircle: View {
     }
 }
 
-public struct CardPreferenceData: Equatable {
+/// Geometry captured for one gesture grid circle.
+public struct CardPreferenceData: Equatable, Sendable {
+    /// The zero-based 3x3 grid index for the circle.
     public let index: Int
+
+    /// The circle bounds in the named grid coordinate space.
     public let bounds: CGRect
+
+    /// Creates captured geometry for a gesture grid circle.
+    ///
+    /// - Parameters:
+    ///   - index: The zero-based 3x3 grid index.
+    ///   - bounds: The circle bounds in the named grid coordinate space.
+    /// - Returns: A geometry record used by the view model for hit testing and
+    ///   path rendering.
+    /// - Throws: This initializer does not throw.
+    public init(index: Int, bounds: CGRect) {
+        self.index = index
+        self.bounds = bounds
+    }
 }
 
+/// Aggregates grid circle geometry emitted by SwiftUI preferences.
 public struct CardPreferenceKey: PreferenceKey {
+    /// The preference value type.
     public typealias Value = [CardPreferenceData]
 
-    public static var defaultValue: [CardPreferenceData] = []
+    /// The default preference value before any circles report geometry.
+    public static let defaultValue: [CardPreferenceData] = []
 
+    /// Appends newly reported circle geometry to the current preference value.
+    ///
+    /// - Parameters:
+    ///   - value: The accumulated preference value to mutate.
+    ///   - nextValue: A closure returning the next batch of geometry values.
+    /// The method does not return a value. It mutates `value` in place.
+    /// - Throws: This method does not throw.
     public static func reduce(value: inout [CardPreferenceData], nextValue: () -> [CardPreferenceData]) {
         value.append(contentsOf: nextValue())
     }
 }
+
+#if DEBUG
+struct GridAuthenticatorPreviews: PreviewProvider {
+    static var previews: some View {
+        GridAuthenticator(.setCredential(debug: true) { _ in })
+            .previewDisplayName("Credential Setup")
+    }
+}
+#endif
