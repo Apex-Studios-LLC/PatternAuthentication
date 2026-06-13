@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.0
 
 import PackageDescription
 
@@ -17,9 +17,14 @@ let package = Package(
         .target(
             name: "PatternAuthentication",
             dependencies: [],
-            path: "Sources",
-            exclude: ["Images"],
+            path: "Sources/PatternAuthentication",
             resources: [.process("Media.xcassets")]
         ),
-    ]
+        .testTarget(
+            name: "PatternAuthenticationTests",
+            dependencies: ["PatternAuthentication"],
+            path: "Tests/PatternAuthenticationTests"
+        ),
+    ],
+    swiftLanguageModes: [.v6]
 )

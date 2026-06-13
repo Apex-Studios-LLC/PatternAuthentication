@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - release
+      - feature/security-credential-upgrade
+  pull_request:
+    branches:
+      - dev
+      - release
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    name: Swift 6 Tests and Coverage
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Resolve package
+        run: swift package resolve
+
+      - name: Select iPhone simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print $2; exit }')"
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "No available iPhone simulator found." >&2
+            exit 1
+          fi
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Test with coverage
+        run: |
+          set -euo pipefail
+          rm -rf TestResults.xcresult coverage.json
+          xcodebuild test \
+            -scheme PatternAuthentication \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            SWIFT_VERSION=6 \
+            SWIFT_STRICT_CONCURRENCY=complete
+
+      - name: Generate coverage report
+        run: xcrun xccov view --report --json TestResults.xcresult > coverage.json
+
+      - name: Enforce 90 percent coverage
+        run: |
+          python3 Scripts/check_coverage.py coverage.json \
+            --threshold 90 \
+            --ignore Sources/PatternAuthentication/PatternAuthentication.swift
+
+      - name: Convert coverage for Codecov
+        id: coverage-files
+        uses: sersoft-gmbh/swift-coverage-action@v5
+        with:
+          search-paths: TestResults.xcresult
+          output: .swiftcov
+          format: lcov
+          target-name-filter: PatternAuthentication
+          ignore-filename-regex: "(.*/Tests/.*|.*/Sources/PatternAuthentication/PatternAuthentication.swift)"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.json
+            .swiftcov
+            TestResults.xcresult
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: ${{ join(fromJSON(steps.coverage-files.outputs.files), ',') }}
+          fail_ci_if_error: false
+          name: PatternAuthentication
+          swift_project: PatternAuthentication
+          use_oidc: true
