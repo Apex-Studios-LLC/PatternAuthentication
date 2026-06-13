@@ -459,8 +459,17 @@ public enum GestureCredentialHasher {
     ///   `expectedHash`; otherwise, `false`.
     /// - Throws: This method does not throw.
     public static func verifyLegacySHA256(vertices: [Int], expectedHash: String) -> Bool {
+        let expectedHashBytes = expectedHash.utf8
+        guard expectedHashBytes.count == 64,
+              expectedHashBytes.allSatisfy({ byte in
+                  (48 ... 57).contains(byte)
+                      || (65 ... 70).contains(byte)
+                      || (97 ... 102).contains(byte)
+              })
+        else { return false }
+
         let actualHash = legacyHashArray(vertices)
-        return constantTimeEquals(Data(actualHash.utf8), Data(expectedHash.utf8))
+        return constantTimeEquals(Data(actualHash.utf8), Data(expectedHash.lowercased().utf8))
     }
 
     /// Creates a v1 envelope after a successful legacy SHA-256 verification.

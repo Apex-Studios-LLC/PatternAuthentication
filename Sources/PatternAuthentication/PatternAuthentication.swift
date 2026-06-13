@@ -6,8 +6,8 @@ import SwiftUI
 /// A SwiftUI 3x3 gesture grid for pattern setup and authentication.
 @MainActor
 public struct GridAuthenticator: View {
-    /// The main-actor view model that owns gesture flow state.
-    @ObservedObject public var viewModel: GridAuthenticatorViewModel
+    /// The main-actor state object that owns gesture flow state.
+    @StateObject public var viewModel: GridAuthenticatorViewModel
 
     /// Creates a grid authenticator view for setup or authentication.
     ///
@@ -16,7 +16,7 @@ public struct GridAuthenticator: View {
     /// - Returns: A SwiftUI view that presents the gesture grid.
     /// - Throws: This initializer does not throw.
     public init(_ gridAuthModel: GridAuthenticatorViewModel.GridAuthenticatorOption) {
-        viewModel = GridAuthenticatorViewModel(gridAuthModel)
+        _viewModel = StateObject(wrappedValue: GridAuthenticatorViewModel(gridAuthModel))
     }
 
     let columns = Array(repeating: GridItem(.fixed(60), spacing: 40), count: 3)
