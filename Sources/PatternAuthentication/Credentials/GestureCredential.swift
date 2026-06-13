@@ -543,9 +543,9 @@ public enum GestureCredentialHasher {
         iterations: Int,
         derivedKeyLength: Int
     ) throws(GestureCredentialError) -> Data {
-        guard iterations > 0 else {
-            throw .invalidIterationCount(iterations)
-        }
+guard iterations > 0, iterations <= Int(UInt32.max) else {
+    throw .invalidIterationCount(iterations)
+}
         guard derivedKeyLength > 0 else {
             throw .invalidDerivedKeyLength(derivedKeyLength)
         }
