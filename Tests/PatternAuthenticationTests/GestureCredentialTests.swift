@@ -115,7 +115,10 @@ struct GestureCredentialTests {
 
         #expect(hashArray(pattern) == legacyHash)
         #expect(GestureCredentialHasher.verifyLegacySHA256(vertices: pattern, expectedHash: legacyHash))
+        #expect(GestureCredentialHasher.verifyLegacySHA256(vertices: pattern, expectedHash: legacyHash.uppercased()))
         #expect(!GestureCredentialHasher.verifyLegacySHA256(vertices: [0, 4, 8], expectedHash: legacyHash))
+        #expect(!GestureCredentialHasher.verifyLegacySHA256(vertices: pattern, expectedHash: String(repeating: "a", count: 1_000)))
+        #expect(!GestureCredentialHasher.verifyLegacySHA256(vertices: pattern, expectedHash: String(repeating: "z", count: 64)))
     }
 
     @Test("Legacy hashes can be migrated after a successful match")

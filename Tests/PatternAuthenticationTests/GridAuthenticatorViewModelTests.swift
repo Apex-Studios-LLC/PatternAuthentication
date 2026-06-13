@@ -368,8 +368,9 @@ struct GridAuthenticatorViewModelTests {
 
     @Test("SwiftUI body smoke test")
     func swiftUIBodySmokeTest() {
-        let view = GridAuthenticator(.setCredential(repeatInput: false) { _ in })
-        _ = view.body
+        let host = UIHostingController(rootView: GridAuthenticator(.setCredential(repeatInput: false) { _ in }))
+        host.loadViewIfNeeded()
+        #expect(host.view != nil)
 
         let circle = GlowyCircle(
             index: 0,
